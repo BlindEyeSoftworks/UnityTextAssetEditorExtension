@@ -21,3 +21,8 @@ Simply download the script and place it inside of the **Editor** folder within y
 ## Using:
 
 Once the extension is installed you can begin creating new text assets by navigating to **Assets > Create > Text Asset** or by right-clicking inside of the **Project** window and navigating to **Create > Text Asset**. You will also be able to edit the contents of any supported text asset from inside of the **Inspector** window.
+
+## System Requirements:
+* Windows 7 or later
+* Unity Editor 2017 or later (64-bit recommended)
+* .NET 4.x
