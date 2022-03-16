@@ -16,7 +16,7 @@ This editor extension allows you to create and edit text assets with the added b
 
 ## Installation:
 
-Simply download the script and place it inside of the **Editor** folder within your project.
+Simply download [the script](https://github.com/BlindEyeSoftworks/UnityTextAssetEditorExtension/tree/main/src) and place it inside of the **Editor** folder within your project.
 
 ## Using:
 
