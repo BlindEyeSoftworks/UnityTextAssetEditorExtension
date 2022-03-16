@@ -44,13 +44,13 @@ public class TextAssetCreator : Editor
 
         string projectPath = Application.dataPath,
                relativeSelectionPath = (Selection.activeObject != null) ?
-               AssetDatabase.GetAssetPath(Selection.activeObject) :
-               (folderHistory.Length != 0) ? folderHistory[0] : "Assets",
+                   AssetDatabase.GetAssetPath(Selection.activeObject) :
+                   (folderHistory.Length != 0) ? folderHistory[0] : "Assets",
                /* Since Selection.activeObject emits a UnityEngine.DefaultAsset object which does
                   not expose a specific type ("yet" - per Unity Technologies) we must differentiate
                   between folder and file paths ourselves for sanitization purposes. */
                relativeAssetPath = Directory.Exists(relativeSelectionPath) ?
-                    relativeSelectionPath : Path.GetDirectoryName(relativeSelectionPath),
+                   relativeSelectionPath : Path.GetDirectoryName(relativeSelectionPath),
                /* The Application.dataPath property contained in Unity's engine API emits the FQPN
                   of the project folder ("Assets") whereas the AssetDatabase.GetAssetPath method
                   in Unity's editor API returns the RPN of an asset with the project folder as the
