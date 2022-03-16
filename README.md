@@ -3,6 +3,8 @@ A Unity3D editor extension for creating and editing text assets.
 
 This editor extension allows you to create and edit text assets with the added benefit of not having to leave the editor.
 
+![In editor view.](https://github.com/BlindEyeSoftworks/UnityTextAssetEditorExtension/blob/main/Assets/Editor.jpg)
+
 **Supported file formats:**
 * TXT
 * HTML
