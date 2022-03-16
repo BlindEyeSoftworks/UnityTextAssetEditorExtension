@@ -100,7 +100,11 @@ public class TextAssetEditor : Editor
     private const string DateFormat = "dddd, MMMM d, yyyy, h:mm:ss tt",
                          Unknown = "Unknown";
 
-    private const uint SHGFI_TYPENAME = 0x400, // Indicates that a file's type should be recieved.
+    private const uint SHFILEINFOW_SIZE = 0x2B8, /* Indicates how many bytes of address space should
+                       should be allocated for SHFILEINFO structures. The size of the structure
+                       should never exceed 696 bytes for 64-bit processes or 692 bytes for 32-bit
+                       processes. */
+                       SHGFI_TYPENAME = 0x400, // Indicates that a file's type should be recieved.
                        SHGFI_USEFILEATTRIBUTES = 0x10, /* Indicates that there should be no attempt
                        to access a specified file but instead treat it as if it exists. */
                        FILE_ATTRIBUTE_NORMAL = 0x80; /* Indicates that a file does not have other
@@ -117,11 +121,8 @@ public class TextAssetEditor : Editor
     [DllImport("Shell32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     public static extern IntPtr SHGetFileInfoW(string pszPath, uint dwFileAttributes,
         ref SHFILEINFOW psfi, uint cbFileInfo, uint uFlags);
-
-    /* 696 bytes of address space has been pre-determined only for 64-bit execution. Executing at a
-       lower bitness will result in larger than normal allocation sizes and reduced copying
-       performance. */
-    [StructLayout(LayoutKind.Sequential, Size = 696, CharSet = CharSet.Unicode)]
+        
+    [StructLayout(LayoutKind.Sequential, Size = (int)SHFILEINFOW_SIZE, CharSet = CharSet.Unicode)]
     public struct SHFILEINFOW
     {
         public IntPtr hIcon;
@@ -302,7 +303,7 @@ public class TextAssetEditor : Editor
            attributes passed in dwFileAttributes. This enables us to obtain information about a
            file type by passing just the extension in pszPath and FILE_ATTRIBUTE_NORMAL in
            dwFileAttributes. */
-        if (SHGetFileInfoW(fileExtension, FILE_ATTRIBUTE_NORMAL, ref shellFileInfo, 696,
+        if (SHGetFileInfoW(fileExtension, FILE_ATTRIBUTE_NORMAL, ref shellFileInfo, SHFILEINFOW_SIZE,
             SHGFI_TYPENAME | SHGFI_USEFILEATTRIBUTES) == IntPtr.Zero)
             return Unknown;
 
