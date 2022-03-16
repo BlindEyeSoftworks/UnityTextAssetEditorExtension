@@ -101,7 +101,7 @@ public class TextAssetEditor : Editor
                          Unknown = "Unknown";
 
     private const uint SHFILEINFOW_SIZE = 0x2B8, /* Indicates how many bytes of address space should
-                       should be allocated for SHFILEINFO structures. The size of the structure
+                       should be allocated for SHFILEINFOW structures. The size of the structure
                        should never exceed 696 bytes for 64-bit processes or 692 bytes for 32-bit
                        processes. */
                        SHGFI_TYPENAME = 0x400, // Indicates that a file's type should be recieved.
