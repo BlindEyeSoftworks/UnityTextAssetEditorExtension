@@ -119,11 +119,11 @@ public class TextAssetEditor : Editor
     private const int MAX_PATH = 260;
 
     [DllImport("Shell32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
-    public static extern IntPtr SHGetFileInfoW(string pszPath, uint dwFileAttributes,
+    private static extern IntPtr SHGetFileInfoW(string pszPath, uint dwFileAttributes,
         ref SHFILEINFOW psfi, uint cbFileInfo, uint uFlags);
         
     [StructLayout(LayoutKind.Sequential, Size = (int)SHFILEINFOW_SIZE, CharSet = CharSet.Unicode)]
-    public struct SHFILEINFOW
+    private struct SHFILEINFOW
     {
         public IntPtr hIcon;
         public int iIcon;
