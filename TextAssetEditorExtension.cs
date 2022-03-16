@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEditor;
 
@@ -43,8 +44,8 @@ public class TextAssetCreator : Editor
 
         string projectPath = Application.dataPath,
                relativeSelectionPath = (Selection.activeObject != null) ?
-                   AssetDatabase.GetAssetPath(Selection.activeObject) :
-                   (folderHistory.Length != 0) ? folderHistory[0] : "Assets",
+               AssetDatabase.GetAssetPath(Selection.activeObject) :
+               (folderHistory.Length != 0) ? folderHistory[0] : "Assets",
                /* Since Selection.activeObject emits a UnityEngine.DefaultAsset object which does
                   not expose a specific type ("yet" - per Unity Technologies) we must differentiate
                   between folder and file paths ourselves for sanitization purposes. */
@@ -96,8 +97,55 @@ public class TextAssetCreator : Editor
 [CustomEditor(typeof(TextAsset))]
 public class TextAssetEditor : Editor
 {
-    string path,
-           contents;
+    private const string DateFormat = "dddd, MMMM d, yyyy, h:mm:ss tt",
+                         Unknown = "Unknown";
+
+    private const uint SHGFI_TYPENAME = 0x400, // Indicates that a file's type should be recieved.
+                       SHGFI_USEFILEATTRIBUTES = 0x10, /* Indicates that there should be no attempt
+                       to access a specified file but instead treat it as if it exists. */
+                       FILE_ATTRIBUTE_NORMAL = 0x80; /* Indicates that a file does not have other
+                       attributes set. This attribute is only valid when used alone. */
+
+    /* Prior to Windows 10, version 1607, file and directory functions contained in the Win32 API
+       define the maximum length for a path as 260 characters. This limitation is also enforced by
+       default when targetting the .NET Framework prior to 4.6.2. Starting in Windows 10, version
+       1607, said limitations have been removed from select parts of the Win32 API for users that
+       opt-in to the feature. However, the parts of the API we are making use of do not support this
+       feature. */
+    private const int MAX_PATH = 260;
+
+    [DllImport("Shell32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    public static extern IntPtr SHGetFileInfoW(string pszPath, uint dwFileAttributes,
+        ref SHFILEINFOW psfi, uint cbFileInfo, uint uFlags);
+
+    /* 696 bytes of address space has been pre-determined only for 64-bit execution. Executing at a
+       lower bitness will result in larger than normal allocation sizes and reduced copying
+       performance. */
+    [StructLayout(LayoutKind.Sequential, Size = 696, CharSet = CharSet.Unicode)]
+    public struct SHFILEINFOW
+    {
+        public IntPtr hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = MAX_PATH)]
+        public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string szTypeName;
+    };
+
+    private bool showContents = true,
+                 showProperties = true;
+
+    private string path = Unknown,
+                   contents = Unknown,
+                   fileType = Unknown,
+                   fileLocation = Unknown,
+                   fileCreationTime = Unknown,
+                   fileLastWriteTime = Unknown,
+                   fileLastAccessTime = Unknown,
+                   fileIsReadOnly = Unknown;
+
+    private FileInfo fileInfo;
 
     private void OnEnable()
     {
@@ -105,26 +153,127 @@ public class TextAssetEditor : Editor
 
         try
         {
+            fileInfo = new FileInfo(path);
             contents = File.ReadAllText(path);
+            fileInfo.LastAccessTime = DateTime.Now;
         }
         catch (Exception e)
         {
             EditorUtility.DisplayDialog("Open Text Asset", e.Message, "OK");
+
+            // Terminate early in case fileInfo raised the exception.
+            return;
         }
+
+        fileType = GetFileType(fileInfo.Extension) + $" ({fileInfo.Extension})";
+        fileLocation = fileInfo.DirectoryName;
+        fileCreationTime = fileInfo.CreationTime.ToString(DateFormat);
+        fileLastWriteTime = fileInfo.LastWriteTime.ToString(DateFormat);
+        fileLastAccessTime = fileInfo.LastAccessTime.ToString(DateFormat);
+        fileIsReadOnly = fileInfo.IsReadOnly.ToString();
     }
 
     public override void OnInspectorGUI()
     {
         GUI.enabled = true;
-        contents = EditorGUILayout.TextArea(contents);
+        EditorGUILayout.BeginVertical();
+        DrawEditorFoldout();
+        DrawPropertiesFoldout();
+        EditorGUILayout.EndVertical();
 
-        if (GUILayout.Button("Save"))
+        void DrawEditorFoldout()
         {
-            TrySaveAsset(path, out bool wasSuccessful);
+            var mode = (fileIsReadOnly != false.ToString()) ? " (Read-only)" : string.Empty;
+            showContents = EditorGUILayout.BeginFoldoutHeaderGroup(showContents, $" File Editor{mode}");
 
-            if (wasSuccessful)
-                EditorWindow.focusedWindow.ShowNotification(
-                    new GUIContent() { text = "File Saved" }, .25);
+            if (showContents)
+            {
+                EditorGUILayout.BeginVertical("box");
+
+                if (fileIsReadOnly != false.ToString())
+                {
+                    EditorGUILayout.SelectableLabel(contents, EditorStyles.textArea, 
+                        GUILayout.MinHeight(300));
+                }
+                else
+                {
+                    contents = EditorGUILayout.TextArea(contents, GUILayout.MinHeight(300));
+
+                    if (GUILayout.Button("Save"))
+                    {
+                        TrySaveAsset(path, out bool wasSuccessful);
+
+                        if (wasSuccessful)
+                        {
+                            EditorWindow.focusedWindow.ShowNotification(
+                                new GUIContent() { text = "File Saved" }, .25);
+
+                            OnEnable();
+                        }
+                    }
+                }
+
+                EditorGUILayout.EndVertical();
+            }
+
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
+        void DrawPropertiesFoldout()
+        {
+            showProperties = EditorGUILayout.BeginFoldoutHeaderGroup(showProperties, " File Properties");
+
+            if (showProperties)
+            {
+                GUILayout.BeginVertical("box");
+                EditorGUIUtility.fieldWidth = 180;
+
+                GUILayout.BeginHorizontal("box");
+                GUILayout.Label("File type:");
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.SelectableLabel(fileType, EditorStyles.textField,
+                    GUILayout.Height(EditorGUIUtility.singleLineHeight));
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal("box");
+                GUILayout.Label("Location:");
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.SelectableLabel(fileLocation, EditorStyles.textField,
+                    GUILayout.Height(EditorGUIUtility.singleLineHeight));
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal("box");
+                GUILayout.Label("Created:");
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.SelectableLabel(fileCreationTime, EditorStyles.textField,
+                    GUILayout.Height(EditorGUIUtility.singleLineHeight));
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal("box");
+                GUILayout.Label("Modified:");
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.SelectableLabel(fileLastWriteTime, EditorStyles.textField,
+                    GUILayout.Height(EditorGUIUtility.singleLineHeight));
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal("box");
+                GUILayout.Label("Accessed:");
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.SelectableLabel(fileLastAccessTime, EditorStyles.textField,
+                    GUILayout.Height(EditorGUIUtility.singleLineHeight));
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal("box");
+                GUILayout.Label("Read-only:");
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.SelectableLabel(fileIsReadOnly, EditorStyles.textField,
+                    GUILayout.Height(EditorGUIUtility.singleLineHeight));
+                GUILayout.EndHorizontal();
+
+                GUILayout.EndVertical();
+            }
+
+            EditorGUILayout.EndFoldoutHeaderGroup();
         }
     }
 
@@ -141,5 +290,22 @@ public class TextAssetEditor : Editor
             wasSuccessful = false;
             EditorUtility.DisplayDialog("Save Text Asset", e.Message, "OK");
         }
+    }
+
+    private string GetFileType(string fileExtension)
+    {
+        var shellFileInfo = new SHFILEINFOW();
+
+        /* Calling into the SHGetFileInfo function with the SHGFI_USEFILEATTRIBUTES flag passed in
+           the uFlags parameter enables invalid file names to be passed in pszPath. The function
+           will proceed as if the file exists with the specified name and with the file
+           attributes passed in dwFileAttributes. This enables us to obtain information about a
+           file type by passing just the extension in pszPath and FILE_ATTRIBUTE_NORMAL in
+           dwFileAttributes. */
+        if (SHGetFileInfoW(fileExtension, FILE_ATTRIBUTE_NORMAL, ref shellFileInfo, 696,
+            SHGFI_TYPENAME | SHGFI_USEFILEATTRIBUTES) == IntPtr.Zero)
+            return Unknown;
+
+        return shellFileInfo.szTypeName;
     }
 }
